@@ -10,12 +10,12 @@ import os
 import requests
 import json
 
-CONFIG_FILE = "hybrid_sub_pro_config_v15.json"
+CONFIG_FILE = "hybrid_sub_pro_config_v16.json"
 
 class HybridSubtitleApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("AI Subtitle Pro v1.5 (Universal Hybrid)")
+        self.root.title("AI Subtitle Pro v1.6 (Token Tracker Edition)")
         self.root.geometry("700x950")
         self.root.configure(bg="#1e272e")
 
@@ -23,9 +23,10 @@ class HybridSubtitleApp:
         self.provider_type = "Unknown"
         self.file_path = ""
         self.auto_filling = False
+        self.total_tokens = 0 # Token tracking variable
 
         # --- HEADER ---
-        tk.Label(root, text="HYBRID AI TRANSLATOR PRO v1.5", bg="#1e272e", fg="#00d8d6", font=("Arial", 16, "bold")).pack(pady=10)
+        tk.Label(root, text="HYBRID AI TRANSLATOR PRO v1.6", bg="#1e272e", fg="#00d8d6", font=("Arial", 16, "bold")).pack(pady=10)
 
         # --- API KEY INPUT ---
         tk.Label(root, text="Paste API Key (Google, Groq, OpenRouter, HF, NVIDIA, etc.):", bg="#1e272e", fg="#d2dae2").pack(pady=(5, 0))
@@ -67,15 +68,19 @@ class HybridSubtitleApp:
         ttk.Combobox(settings_frame, textvariable=self.lang_var, values=["Sinhala", "Tamil", "Hindi"], width=10).grid(row=0, column=3, padx=5)
 
         self.delay_enabled = tk.BooleanVar(value=True)
-        tk.Checkbutton(settings_frame, text="Enable 15s Delay (For Free Keys)", variable=self.delay_enabled, bg="#1e272e", fg="#0be881", selectcolor="#1e272e").grid(row=1, column=0, columnspan=4, pady=5)
+        tk.Checkbutton(settings_frame, text="Enable 15s Delay", variable=self.delay_enabled, bg="#1e272e", fg="#0be881", selectcolor="#1e272e").grid(row=1, column=0, columnspan=4, pady=5)
 
         self.resume_var = tk.StringVar(value="1")
         tk.Label(settings_frame, text="Start from Chunk:", bg="#1e272e", fg="#ff9f43").grid(row=2, column=0, columnspan=2, sticky="e")
         tk.Entry(settings_frame, textvariable=self.resume_var, width=6, bg="#ff9f43", font=("Arial", 10, "bold")).grid(row=2, column=2, sticky="w", padx=5)
 
         # --- LOG BOX ---
-        self.log_box = tk.Text(root, height=18, width=80, bg="#000000", fg="#0be881", font=("Consolas", 9))
+        self.log_box = tk.Text(root, height=15, width=80, bg="#000000", fg="#0be881", font=("Consolas", 9))
         self.log_box.pack(pady=5, padx=20)
+
+        # --- TOKEN USAGE BAR (NEW) ---
+        self.token_usage_lbl = tk.Label(root, text="Total AI Tokens Used: 0", bg="#1e272e", fg="#feca57", font=("Arial", 10, "bold"))
+        self.token_usage_lbl.pack(pady=5)
 
         # --- BUTTONS ---
         btn_frame = tk.Frame(root, bg="#1e272e")
@@ -89,6 +94,10 @@ class HybridSubtitleApp:
 
         self.load_settings()
 
+    def update_token_display(self, count):
+        self.total_tokens += count
+        self.token_usage_lbl.config(text=f"Total AI Tokens Used: {self.total_tokens:,}")
+
     def on_model_manual_change(self, *args):
         if not self.auto_filling and self.model_var.get().strip():
             self.status_lbl.config(text=f"✅ Using Manual Model: {self.model_var.get()}", fg="#0be881")
@@ -98,7 +107,6 @@ class HybridSubtitleApp:
         if not key: 
             self.status_lbl.config(text="Waiting for API Key...", fg="#808e9b")
             return
-        
         self.auto_filling = True
         if key.startswith("AIza"):
             self.status_lbl.config(text="✅ Detected: Google Gemini", fg="#0be881")
@@ -120,12 +128,8 @@ class HybridSubtitleApp:
             self.status_lbl.config(text="✅ Detected: NVIDIA API", fg="#0be881")
             self.url_var.set("https://integrate.api.nvidia.com/v1"); self.model_var.set("deepseek-ai/deepseek-v3")
             self.provider_type = "OpenAI_Compatible"
-        elif "aimlapi" in key.lower() or len(key) > 40: # AIMLAPI detection
-            self.status_lbl.config(text="✅ Detected: AIMLAPI / Custom", fg="#0be881")
-            self.url_var.set("https://api.aimlapi.com"); self.model_var.set("gpt-4o-mini")
-            self.provider_type = "OpenAI_Compatible"
         else:
-            self.status_lbl.config(text="⚠️ Unknown Key: Manual Setup Required", fg="#ffdd59")
+            self.status_lbl.config(text="⚠️ Unknown Key: Manual URL Required", fg="#ffdd59")
             self.provider_type = "OpenAI_Compatible"
         self.auto_filling = False
 
@@ -152,8 +156,7 @@ class HybridSubtitleApp:
 
     def open_file(self):
         self.file_path = filedialog.askopenfilename(filetypes=[("SRT files", "*.srt")])
-        if self.file_path:
-            self.lbl_status_file.config(text=os.path.basename(self.file_path), fg="white")
+        if self.file_path: self.lbl_status_file.config(text=os.path.basename(self.file_path), fg="white")
 
     def stop_process(self):
         if self.is_running:
@@ -166,6 +169,8 @@ class HybridSubtitleApp:
         self.api_var.set(""); self.url_var.set(""); self.model_var.set(""); self.file_path = ""
         self.lbl_status_file.config(text="No file selected", fg="#808e9b")
         self.resume_var.set("1"); self.log_box.delete('1.0', tk.END)
+        self.total_tokens = 0
+        self.token_usage_lbl.config(text="Total AI Tokens Used: 0")
 
     def start_process(self):
         if not self.file_path or not self.api_var.get().strip():
@@ -201,7 +206,7 @@ class HybridSubtitleApp:
 
             c_size = int(self.chunk_var.get())
             total_chunks = (len(parsed_blocks) // c_size) + 1
-            self.log(f"Hybrid Pro v1.5 Started. Blocks: {len(parsed_blocks)} | Chunks: {total_chunks}")
+            self.log(f"Hybrid Pro v1.6 Started. Blocks: {len(parsed_blocks)} | Chunks: {total_chunks}")
 
             for i in range((start_chunk-1)*c_size, len(parsed_blocks), c_size):
                 if not self.is_running: break
@@ -212,12 +217,10 @@ class HybridSubtitleApp:
                 for j, b in enumerate(chunk): text_payload += f"ID_{j}:: {b['text']}\n"
                 
                 prompt = f"""You are a professional movie subtitle simplifier.
-1. Rewrite the English text into VERY simple, plain English that is easy to translate to Sinhala.
-2. If the text has an idiom (e.g. 'Watch your six'), replace it with its literal meaning (e.g. 'Look behind you').
-3. Identify ALL names of people, places, or callsigns. Replace them with tags like NAME_TAG_1, NAME_TAG_2.
-4. Detect the 'Mood' of each line (e.g. Angry, Polite, Happy) and add a hint word at the start (e.g. 'Politely, please go' or 'Angrily, get out').
-5. Provide the Sinhala transliteration for the names.
-
+1. Rewrite English into simple, natural, spoken English.
+2. Replace names with tags like [NAME_1], [NAME_2].
+3. Detect 'Mood' (Angry, Polite) and add a hint word.
+4. Provide Sinhala transliteration for names.
 Format: ID_X::[Simplified text with Mood and Tags] ||| NAME_TAG_1=සිංහලනම
 Input:
 {text_payload}"""
@@ -227,16 +230,25 @@ Input:
                     try:
                         self.log(f"⚙️ Chunk {current_chunk_num}: AI Processing...")
                         res_text = ""
+                        usage_count = 0
                         api_key = self.api_var.get().strip()
-                        if api_key.startswith("AIza"):
+                        
+                        if self.provider_type == "Gemini":
                             genai.configure(api_key=api_key)
                             m = genai.GenerativeModel(self.model_var.get().strip())
-                            res_text = m.generate_content(prompt).text
+                            response = m.generate_content(prompt)
+                            res_text = response.text
+                            usage_count = response.usage_metadata.total_token_count
                         else:
                             client = OpenAI(api_key=api_key, base_url=self.url_var.get().strip() if self.url_var.get() != "N/A" else None)
-                            res_text = client.chat.completions.create(model=self.model_var.get().strip(), messages=[{"role": "user", "content": prompt}], temperature=0.3).choices[0].message.content
+                            response = client.chat.completions.create(model=self.model_var.get().strip(), messages=[{"role": "user", "content": prompt}], temperature=0.3)
+                            res_text = response.choices[0].message.content
+                            usage_count = response.usage.total_tokens
 
                         if res_text:
+                            # Update Token Tracker UI
+                            self.root.after(0, self.update_token_display, usage_count)
+                            
                             self.log(f"🌍 Chunk {current_chunk_num}: Google Translating...")
                             extracted, mappings, ids = [], [], []
                             for line in res_text.strip().split('\n'):
@@ -260,14 +272,12 @@ Input:
                                 t_text = translator.translate(text_to_trans)
                                 for tag, name in mappings[j].items():
                                     t_text = re.sub(rf"{tag}", name, t_text, flags=re.IGNORECASE)
-                                
                                 orig_b = chunk[ids[j]]
                                 srt_out += f"{orig_b['index']}\n{orig_b['time']}\n{t_text}\n\n"
                             
                             with open(save_path, 'a', encoding='utf-8') as f: f.write(srt_out)
                             self.log(f"✅ Chunk {current_chunk_num} success!")
                             success = True
-                        else: raise Exception("Empty response")
                     except Exception as e:
                         self.log(f"⚠️ Error: {str(e)[:50]}... Retrying")
                         time.sleep(15)
@@ -276,7 +286,7 @@ Input:
                     self.log("⏳ Delaying 15s...")
                     time.sleep(15)
 
-            if self.is_running: messagebox.showinfo("Done", "Success! Hybrid Translation Saved.")
+            if self.is_running: messagebox.showinfo("Done", "Success! Token Usage Tracked.")
         except Exception as e:
             if "cancelled" not in str(e).lower(): self.log(f"CRITICAL: {str(e)}")
         finally:
