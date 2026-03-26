@@ -10,12 +10,12 @@ import os
 import requests
 import json
 
-CONFIG_FILE = "hybrid_sub_pro_config_v16.json"
+CONFIG_FILE = "hybrid_sub_pro_config_v18.json"
 
 class HybridSubtitleApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("AI Subtitle Pro v1.6 (Token Tracker Edition)")
+        self.root.title("AI Subtitle Pro v1.8 (The Final Perfect Hybrid)")
         self.root.geometry("700x950")
         self.root.configure(bg="#1e272e")
 
@@ -23,10 +23,10 @@ class HybridSubtitleApp:
         self.provider_type = "Unknown"
         self.file_path = ""
         self.auto_filling = False
-        self.total_tokens = 0 # Token tracking variable
+        self.total_tokens = 0 
 
         # --- HEADER ---
-        tk.Label(root, text="HYBRID AI TRANSLATOR PRO v1.6", bg="#1e272e", fg="#00d8d6", font=("Arial", 16, "bold")).pack(pady=10)
+        tk.Label(root, text="HYBRID AI TRANSLATOR PRO v1.8", bg="#1e272e", fg="#00d8d6", font=("Arial", 16, "bold")).pack(pady=10)
 
         # --- API KEY INPUT ---
         tk.Label(root, text="Paste API Key (Google, Groq, OpenRouter, HF, NVIDIA, etc.):", bg="#1e272e", fg="#d2dae2").pack(pady=(5, 0))
@@ -75,10 +75,9 @@ class HybridSubtitleApp:
         tk.Entry(settings_frame, textvariable=self.resume_var, width=6, bg="#ff9f43", font=("Arial", 10, "bold")).grid(row=2, column=2, sticky="w", padx=5)
 
         # --- LOG BOX ---
-        self.log_box = tk.Text(root, height=15, width=80, bg="#000000", fg="#0be881", font=("Consolas", 9))
+        self.log_box = tk.Text(root, height=20, width=80, bg="#000000", fg="#0be881", font=("Consolas", 9))
         self.log_box.pack(pady=5, padx=20)
 
-        # --- TOKEN USAGE BAR (NEW) ---
         self.token_usage_lbl = tk.Label(root, text="Total AI Tokens Used: 0", bg="#1e272e", fg="#feca57", font=("Arial", 10, "bold"))
         self.token_usage_lbl.pack(pady=5)
 
@@ -93,10 +92,6 @@ class HybridSubtitleApp:
         self.btn_reset.grid(row=0, column=2, padx=10)
 
         self.load_settings()
-
-    def update_token_display(self, count):
-        self.total_tokens += count
-        self.token_usage_lbl.config(text=f"Total AI Tokens Used: {self.total_tokens:,}")
 
     def on_model_manual_change(self, *args):
         if not self.auto_filling and self.model_var.get().strip():
@@ -129,7 +124,7 @@ class HybridSubtitleApp:
             self.url_var.set("https://integrate.api.nvidia.com/v1"); self.model_var.set("deepseek-ai/deepseek-v3")
             self.provider_type = "OpenAI_Compatible"
         else:
-            self.status_lbl.config(text="⚠️ Unknown Key: Manual URL Required", fg="#ffdd59")
+            self.status_lbl.config(text="⚠️ Unknown Key: Manual Setup Required", fg="#ffdd59")
             self.provider_type = "OpenAI_Compatible"
         self.auto_filling = False
 
@@ -156,7 +151,8 @@ class HybridSubtitleApp:
 
     def open_file(self):
         self.file_path = filedialog.askopenfilename(filetypes=[("SRT files", "*.srt")])
-        if self.file_path: self.lbl_status_file.config(text=os.path.basename(self.file_path), fg="white")
+        if self.file_path:
+            self.lbl_status_file.config(text=os.path.basename(self.file_path), fg="white")
 
     def stop_process(self):
         if self.is_running:
@@ -169,8 +165,7 @@ class HybridSubtitleApp:
         self.api_var.set(""); self.url_var.set(""); self.model_var.set(""); self.file_path = ""
         self.lbl_status_file.config(text="No file selected", fg="#808e9b")
         self.resume_var.set("1"); self.log_box.delete('1.0', tk.END)
-        self.total_tokens = 0
-        self.token_usage_lbl.config(text="Total AI Tokens Used: 0")
+        self.total_tokens = 0; self.token_usage_lbl.config(text="Total AI Tokens Used: 0")
 
     def start_process(self):
         if not self.file_path or not self.api_var.get().strip():
@@ -206,7 +201,7 @@ class HybridSubtitleApp:
 
             c_size = int(self.chunk_var.get())
             total_chunks = (len(parsed_blocks) // c_size) + 1
-            self.log(f"Hybrid Pro v1.6 Started. Blocks: {len(parsed_blocks)} | Chunks: {total_chunks}")
+            self.log(f"Hybrid Pro v1.8 Started. Blocks: {len(parsed_blocks)} | Chunks: {total_chunks}")
 
             for i in range((start_chunk-1)*c_size, len(parsed_blocks), c_size):
                 if not self.is_running: break
@@ -216,12 +211,15 @@ class HybridSubtitleApp:
                 text_payload = ""
                 for j, b in enumerate(chunk): text_payload += f"ID_{j}:: {b['text']}\n"
                 
+                # --- v1.8 PERFECT PROMPT: No Mood Prefixes, Better Naming ---
                 prompt = f"""You are a professional movie subtitle simplifier.
-1. Rewrite English into simple, natural, spoken English.
-2. Replace names with tags like [NAME_1], [NAME_2].
-3. Detect 'Mood' (Angry, Polite) and add a hint word.
-4. Provide Sinhala transliteration for names.
-Format: ID_X::[Simplified text with Mood and Tags] ||| NAME_TAG_1=සිංහලනම
+1. Rewrite the English text into natural, easy-to-translate English.
+2. CRITICAL: Identify ALL proper nouns (names like 'Kedru', 'Spartan', 'Patrol').
+3. Replace them with tags like ((1)), ((2)).
+4. Provide the exact Sinhala transliteration for those names.
+5. DO NOT add any mood words like 'Angry' or 'Polite'.
+
+Format: ID_X::[English text with ((tags))] ||| ((1))=සිංහලනම
 Input:
 {text_payload}"""
                 
@@ -229,26 +227,22 @@ Input:
                 while not success and self.is_running:
                     try:
                         self.log(f"⚙️ Chunk {current_chunk_num}: AI Processing...")
-                        res_text = ""
-                        usage_count = 0
+                        res_text = ""; usage_count = 0
                         api_key = self.api_var.get().strip()
                         
                         if self.provider_type == "Gemini":
                             genai.configure(api_key=api_key)
                             m = genai.GenerativeModel(self.model_var.get().strip())
                             response = m.generate_content(prompt)
-                            res_text = response.text
-                            usage_count = response.usage_metadata.total_token_count
+                            res_text = response.text; usage_count = response.usage_metadata.total_token_count
                         else:
                             client = OpenAI(api_key=api_key, base_url=self.url_var.get().strip() if self.url_var.get() != "N/A" else None)
                             response = client.chat.completions.create(model=self.model_var.get().strip(), messages=[{"role": "user", "content": prompt}], temperature=0.3)
-                            res_text = response.choices[0].message.content
-                            usage_count = response.usage.total_tokens
+                            res_text = response.choices[0].message.content; usage_count = response.usage.total_tokens
 
                         if res_text:
-                            # Update Token Tracker UI
-                            self.root.after(0, self.update_token_display, usage_count)
-                            
+                            self.total_tokens += usage_count
+                            self.token_usage_lbl.config(text=f"Total AI Tokens Used: {self.total_tokens:,}")
                             self.log(f"🌍 Chunk {current_chunk_num}: Google Translating...")
                             extracted, mappings, ids = [], [], []
                             for line in res_text.strip().split('\n'):
@@ -270,8 +264,11 @@ Input:
                             srt_out = ""
                             for j, text_to_trans in enumerate(extracted):
                                 t_text = translator.translate(text_to_trans)
+                                # v1.8 ROBUST REPLACEMENT FOR ((1)) TAGS
                                 for tag, name in mappings[j].items():
-                                    t_text = re.sub(rf"{tag}", name, t_text, flags=re.IGNORECASE)
+                                    tag_num = tag.replace("(", "").replace(")", "")
+                                    t_text = re.sub(rf"\(\(\s*{tag_num}\s*\)\)", name, t_text, flags=re.IGNORECASE)
+                                
                                 orig_b = chunk[ids[j]]
                                 srt_out += f"{orig_b['index']}\n{orig_b['time']}\n{t_text}\n\n"
                             
@@ -286,7 +283,7 @@ Input:
                     self.log("⏳ Delaying 15s...")
                     time.sleep(15)
 
-            if self.is_running: messagebox.showinfo("Done", "Success! Token Usage Tracked.")
+            if self.is_running: messagebox.showinfo("Done", "Success! Final Hybrid Fix Applied.")
         except Exception as e:
             if "cancelled" not in str(e).lower(): self.log(f"CRITICAL: {str(e)}")
         finally:
