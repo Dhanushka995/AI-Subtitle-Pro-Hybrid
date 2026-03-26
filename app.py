@@ -10,23 +10,25 @@ import os
 import requests
 import json
 
-CONFIG_FILE = "hybrid_sub_pro_config_v12.json"
+CONFIG_FILE = "hybrid_sub_pro_config_v14.json"
 
 class HybridSubtitleApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("AI Subtitle Pro v1.2 (Professional Hybrid)")
+        self.root.title("AI Subtitle Pro v1.4 (Ultimate Hybrid Masterpiece)")
         self.root.geometry("700x950")
         self.root.configure(bg="#1e272e")
 
         self.is_running = False
+        self.provider_type = "Unknown"
         self.file_path = ""
         self.auto_filling = False
 
-        # --- UI ---
-        tk.Label(root, text="HYBRID AI TRANSLATOR PRO", bg="#1e272e", fg="#00d8d6", font=("Arial", 16, "bold")).pack(pady=10)
+        # --- HEADER ---
+        tk.Label(root, text="HYBRID AI TRANSLATOR PRO v1.4", bg="#1e272e", fg="#00d8d6", font=("Arial", 16, "bold")).pack(pady=10)
 
-        tk.Label(root, text="Paste API Key (Slot 1):", bg="#1e272e", fg="#d2dae2").pack(pady=(5, 0))
+        # --- API KEY INPUT ---
+        tk.Label(root, text="Paste API Key (Google, Groq, OpenRouter, etc.):", bg="#1e272e", fg="#d2dae2").pack(pady=(5, 0))
         self.api_var = tk.StringVar()
         self.api_var.trace_add("write", self.on_key_change)
         tk.Entry(root, textvariable=self.api_var, width=65, show="*", bg="#485460", fg="white", borderwidth=0, font=("Consolas", 10)).pack(pady=5, ipady=6)
@@ -34,6 +36,7 @@ class HybridSubtitleApp:
         self.status_lbl = tk.Label(root, text="Waiting for API Key...", bg="#1e272e", fg="#808e9b", font=("Arial", 9, "bold"))
         self.status_lbl.pack(pady=2)
 
+        # --- ADVANCED SETTINGS ---
         self.adv_frame = tk.Frame(root, bg="#2f3640", padx=10, pady=10)
         self.adv_frame.pack(pady=5, fill="x", padx=40)
         
@@ -46,32 +49,35 @@ class HybridSubtitleApp:
         self.model_var.trace_add("write", self.on_model_manual_change)
         tk.Entry(self.adv_frame, textvariable=self.model_var, width=50, bg="#1e272e", fg="white").grid(row=1, column=1, padx=10, pady=2)
 
+        # --- FILE SELECTION ---
         tk.Button(root, text="📂 Select English SRT File", command=self.open_file, bg="#0fb9b1", fg="white", font=("Arial", 10, "bold"), width=30).pack(pady=10)
         self.lbl_status_file = tk.Label(root, text="No file selected", bg="#1e272e", fg="#808e9b")
         self.lbl_status_file.pack()
 
+        # --- SETTINGS ---
         settings_frame = tk.Frame(root, bg="#1e272e")
         settings_frame.pack(pady=5)
         
         tk.Label(settings_frame, text="Chunk Size:", bg="#1e272e", fg="white").grid(row=0, column=0, padx=5)
-        self.chunk_var = tk.StringVar(value="40")
-        ttk.Combobox(settings_frame, textvariable=self.chunk_var, values=["10", "20", "30", "40", "50"], width=5).grid(row=0, column=1, padx=5)
+        self.chunk_var = tk.StringVar(value="30")
+        ttk.Combobox(settings_frame, textvariable=self.chunk_var, values=["10", "20", "30", "40"], width=5).grid(row=0, column=1, padx=5)
         
         tk.Label(settings_frame, text="Language:", bg="#1e272e", fg="white").grid(row=0, column=2, padx=15)
         self.lang_var = tk.StringVar(value="Sinhala")
         ttk.Combobox(settings_frame, textvariable=self.lang_var, values=["Sinhala", "Tamil", "Hindi"], width=10).grid(row=0, column=3, padx=5)
 
         self.delay_enabled = tk.BooleanVar(value=True)
-        tk.Checkbutton(settings_frame, text="Enable 15s Delay", variable=self.delay_enabled, bg="#1e272e", fg="#0be881", selectcolor="#1e272e").grid(row=1, column=0, columnspan=4, pady=5)
+        tk.Checkbutton(settings_frame, text="Enable 15s Delay (For Free Keys)", variable=self.delay_enabled, bg="#1e272e", fg="#0be881", selectcolor="#1e272e").grid(row=1, column=0, columnspan=4, pady=5)
 
-        tk.Label(settings_frame, text="Start from Chunk:", bg="#1e272e", fg="#ff9f43").grid(row=2, column=0, columnspan=2, pady=5, sticky="e")
         self.resume_var = tk.StringVar(value="1")
-        tk.Entry(settings_frame, textvariable=self.resume_var, width=6, bg="#ff9f43", font=("Arial", 10, "bold")).grid(row=2, column=2, sticky="w", pady=5)
+        tk.Label(settings_frame, text="Start from Chunk:", bg="#1e272e", fg="#ff9f43").grid(row=2, column=0, columnspan=2, sticky="e")
+        tk.Entry(settings_frame, textvariable=self.resume_var, width=6, bg="#ff9f43", font=("Arial", 10, "bold")).grid(row=2, column=2, sticky="w", padx=5)
 
-        # LOG BOX (Increased Height to 20)
+        # --- LOG BOX ---
         self.log_box = tk.Text(root, height=20, width=80, bg="#000000", fg="#0be881", font=("Consolas", 9))
         self.log_box.pack(pady=5, padx=20)
 
+        # --- BUTTONS ---
         btn_frame = tk.Frame(root, bg="#1e272e")
         btn_frame.pack(pady=10)
         self.btn_start = tk.Button(btn_frame, text="START", command=self.start_process, bg="#0984e3", fg="white", font=("Arial", 12, "bold"), width=15, height=2)
@@ -96,17 +102,21 @@ class HybridSubtitleApp:
         if key.startswith("AIza"):
             self.status_lbl.config(text="✅ Detected: Google Gemini", fg="#0be881")
             self.url_var.set("N/A"); self.model_var.set("gemini-1.5-flash")
+            self.provider_type = "Gemini"
         elif key.startswith("sk-or-"):
             self.status_lbl.config(text="✅ Detected: OpenRouter", fg="#0be881")
             self.url_var.set("https://openrouter.ai/api/v1"); self.model_var.set("google/gemini-2.0-flash-lite-preview-02-05:free")
+            self.provider_type = "OpenAI_Compatible"
         elif key.startswith("gsk_"):
             self.status_lbl.config(text="✅ Detected: Groq API", fg="#0be881")
             self.url_var.set("https://api.groq.com/openai/v1"); self.model_var.set("llama-3.3-70b-versatile")
+            self.provider_type = "OpenAI_Compatible"
         elif key.startswith("nvapi-"):
             self.status_lbl.config(text="✅ Detected: NVIDIA API", fg="#0be881")
             self.url_var.set("https://integrate.api.nvidia.com/v1"); self.model_var.set("deepseek-ai/deepseek-v3")
+            self.provider_type = "OpenAI_Compatible"
         else:
-            self.status_lbl.config(text="⚠️ Unknown Key: Enter URL manually", fg="#ffdd59")
+            self.status_lbl.config(text="⚠️ Unknown Key Type", fg="#ffdd59")
         self.auto_filling = False
 
     def load_settings(self):
@@ -180,7 +190,7 @@ class HybridSubtitleApp:
 
             c_size = int(self.chunk_var.get())
             total_chunks = (len(parsed_blocks) // c_size) + 1
-            self.log(f"Hybrid Pro Started. Blocks: {len(parsed_blocks)} | Chunks: {total_chunks}")
+            self.log(f"Hybrid v1.4 Started. Blocks: {len(parsed_blocks)} | Chunks: {total_chunks}")
 
             for i in range((start_chunk-1)*c_size, len(parsed_blocks), c_size):
                 if not self.is_running: break
@@ -190,24 +200,22 @@ class HybridSubtitleApp:
                 text_payload = ""
                 for j, b in enumerate(chunk): text_payload += f"ID_{j}:: {b['text']}\n"
                 
-                # ENHANCED PROMPT: Strict name detection & transliteration
-                prompt = f"""You are an expert English-to-Sinhala subtitle processor.
-1. Simplify the English text. Remove slang.
-2. CRITICAL: Identify ALL proper nouns (names of people, places, weapons, callsigns like 'Kedru', 'Spartan', 'Patrol').
-3. Replace these names with double-bracket tags like [[1]], [[2]].
-4. Provide the exact Sinhala transliteration (pronunciation) for those names.
+                # --- ADVANCED HYBRID PROMPT ---
+                prompt = f"""You are a professional movie subtitle simplifier.
+1. Rewrite the English text into VERY simple, plain English that is easy to translate to Sinhala.
+2. If the text has an idiom (e.g. 'Watch your six'), replace it with its literal meaning (e.g. 'Look behind you').
+3. Identify ALL names of people, places, or callsigns. Replace them with tags like NAME_TAG_1, NAME_TAG_2.
+4. Detect the 'Mood' of each line (e.g. Angry, Polite, Happy) and add a hint word at the start (e.g. 'Politely, please go' or 'Angrily, get out').
+5. Provide the Sinhala transliteration for the names.
 
-Format your output EXACTLY like this:
-ID_X::[Simplified text with [[tags]]] ||| [[1]]=සිංහලනම, [[2]]=සිංහලනම
-(If no names, use ||| NONE)
-
+Format: ID_X::[Simplified text with Mood and Tags] ||| NAME_TAG_1=සිංහලනම
 Input:
 {text_payload}"""
                 
                 success = False
                 while not success and self.is_running:
                     try:
-                        self.log(f"⚙️ Chunk {current_chunk_num}: AI Processing...")
+                        self.log(f"⚙️ Chunk {current_chunk_num}: AI Analyzing Mood & Names...")
                         res_text = ""
                         api_key = self.api_var.get().strip()
                         if api_key.startswith("AIza"):
@@ -216,10 +224,10 @@ Input:
                             res_text = m.generate_content(prompt).text
                         else:
                             client = OpenAI(api_key=api_key, base_url=self.url_var.get().strip() if self.url_var.get() != "N/A" else None)
-                            res_text = client.chat.completions.create(model=self.model_var.get().strip(), messages=[{"role": "user", "content": prompt}]).choices[0].message.content
+                            res_text = client.chat.completions.create(model=self.model_var.get().strip(), messages=[{"role": "user", "content": prompt}], temperature=0.3).choices[0].message.content
 
                         if res_text:
-                            self.log(f"🌍 Chunk {current_chunk_num}: Google Translating...")
+                            self.log(f"🌍 Chunk {current_chunk_num}: Google Translating (High Quality)...")
                             extracted, mappings, ids = [], [], []
                             for line in res_text.strip().split('\n'):
                                 if "ID_" in line and "::" in line:
@@ -236,14 +244,12 @@ Input:
 
                             if not extracted: raise Exception("Format error")
                             
-                            translations = GoogleTranslator(source='en', target='si').translate_batch(extracted)
+                            translator = GoogleTranslator(source='en', target='si')
                             srt_out = ""
-                            for j, t_text in enumerate(translations):
-                                # ROBUST REPLACEMENT: Handles spaces added by Google
+                            for j, text_to_trans in enumerate(extracted):
+                                t_text = translator.translate(text_to_trans)
                                 for tag, name in mappings[j].items():
-                                    tag_clean = tag.replace("[[", "").replace("]]", "")
-                                    pattern = re.compile(rf"\[\s*\[\s*{tag_clean}\s*\]\s*\]")
-                                    t_text = pattern.sub(name, t_text)
+                                    t_text = re.sub(rf"{tag}", name, t_text, flags=re.IGNORECASE)
                                 
                                 orig_b = chunk[ids[j]]
                                 srt_out += f"{orig_b['index']}\n{orig_b['time']}\n{t_text}\n\n"
@@ -251,15 +257,16 @@ Input:
                             with open(save_path, 'a', encoding='utf-8') as f: f.write(srt_out)
                             self.log(f"✅ Chunk {current_chunk_num} success!")
                             success = True
+                        else: raise Exception("Empty response")
                     except Exception as e:
                         self.log(f"⚠️ Error: {str(e)[:50]}... Retrying")
                         time.sleep(15)
 
                 if self.is_running and self.delay_enabled.get() and i + c_size < len(parsed_blocks):
-                    self.log("⏳ Delaying 15s for safety...")
+                    self.log("⏳ Delaying 15s...")
                     time.sleep(15)
 
-            if self.is_running: messagebox.showinfo("Done", "Success!")
+            if self.is_running: messagebox.showinfo("Done", "Success! Ultimate Hybrid Translation Saved.")
         except Exception as e:
             if "cancelled" not in str(e).lower(): self.log(f"CRITICAL: {str(e)}")
         finally:
