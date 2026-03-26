@@ -10,12 +10,12 @@ import os
 import requests
 import json
 
-CONFIG_FILE = "hybrid_sub_pro_config_v14.json"
+CONFIG_FILE = "hybrid_sub_pro_config_v15.json"
 
 class HybridSubtitleApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("AI Subtitle Pro v1.4 (Ultimate Hybrid Masterpiece)")
+        self.root.title("AI Subtitle Pro v1.5 (Universal Hybrid)")
         self.root.geometry("700x950")
         self.root.configure(bg="#1e272e")
 
@@ -25,10 +25,10 @@ class HybridSubtitleApp:
         self.auto_filling = False
 
         # --- HEADER ---
-        tk.Label(root, text="HYBRID AI TRANSLATOR PRO v1.4", bg="#1e272e", fg="#00d8d6", font=("Arial", 16, "bold")).pack(pady=10)
+        tk.Label(root, text="HYBRID AI TRANSLATOR PRO v1.5", bg="#1e272e", fg="#00d8d6", font=("Arial", 16, "bold")).pack(pady=10)
 
         # --- API KEY INPUT ---
-        tk.Label(root, text="Paste API Key (Google, Groq, OpenRouter, etc.):", bg="#1e272e", fg="#d2dae2").pack(pady=(5, 0))
+        tk.Label(root, text="Paste API Key (Google, Groq, OpenRouter, HF, NVIDIA, etc.):", bg="#1e272e", fg="#d2dae2").pack(pady=(5, 0))
         self.api_var = tk.StringVar()
         self.api_var.trace_add("write", self.on_key_change)
         tk.Entry(root, textvariable=self.api_var, width=65, show="*", bg="#485460", fg="white", borderwidth=0, font=("Consolas", 10)).pack(pady=5, ipady=6)
@@ -74,7 +74,7 @@ class HybridSubtitleApp:
         tk.Entry(settings_frame, textvariable=self.resume_var, width=6, bg="#ff9f43", font=("Arial", 10, "bold")).grid(row=2, column=2, sticky="w", padx=5)
 
         # --- LOG BOX ---
-        self.log_box = tk.Text(root, height=20, width=80, bg="#000000", fg="#0be881", font=("Consolas", 9))
+        self.log_box = tk.Text(root, height=18, width=80, bg="#000000", fg="#0be881", font=("Consolas", 9))
         self.log_box.pack(pady=5, padx=20)
 
         # --- BUTTONS ---
@@ -98,6 +98,7 @@ class HybridSubtitleApp:
         if not key: 
             self.status_lbl.config(text="Waiting for API Key...", fg="#808e9b")
             return
+        
         self.auto_filling = True
         if key.startswith("AIza"):
             self.status_lbl.config(text="✅ Detected: Google Gemini", fg="#0be881")
@@ -111,12 +112,21 @@ class HybridSubtitleApp:
             self.status_lbl.config(text="✅ Detected: Groq API", fg="#0be881")
             self.url_var.set("https://api.groq.com/openai/v1"); self.model_var.set("llama-3.3-70b-versatile")
             self.provider_type = "OpenAI_Compatible"
+        elif key.startswith("hf_"):
+            self.status_lbl.config(text="✅ Detected: Hugging Face", fg="#0be881")
+            self.url_var.set("https://api-inference.huggingface.co/v1"); self.model_var.set("Qwen/Qwen2.5-72B-Instruct")
+            self.provider_type = "OpenAI_Compatible"
         elif key.startswith("nvapi-"):
             self.status_lbl.config(text="✅ Detected: NVIDIA API", fg="#0be881")
             self.url_var.set("https://integrate.api.nvidia.com/v1"); self.model_var.set("deepseek-ai/deepseek-v3")
             self.provider_type = "OpenAI_Compatible"
+        elif "aimlapi" in key.lower() or len(key) > 40: # AIMLAPI detection
+            self.status_lbl.config(text="✅ Detected: AIMLAPI / Custom", fg="#0be881")
+            self.url_var.set("https://api.aimlapi.com"); self.model_var.set("gpt-4o-mini")
+            self.provider_type = "OpenAI_Compatible"
         else:
-            self.status_lbl.config(text="⚠️ Unknown Key Type", fg="#ffdd59")
+            self.status_lbl.config(text="⚠️ Unknown Key: Manual Setup Required", fg="#ffdd59")
+            self.provider_type = "OpenAI_Compatible"
         self.auto_filling = False
 
     def load_settings(self):
@@ -142,12 +152,13 @@ class HybridSubtitleApp:
 
     def open_file(self):
         self.file_path = filedialog.askopenfilename(filetypes=[("SRT files", "*.srt")])
-        if self.file_path: self.lbl_status_file.config(text=os.path.basename(self.file_path), fg="white")
+        if self.file_path:
+            self.lbl_status_file.config(text=os.path.basename(self.file_path), fg="white")
 
     def stop_process(self):
         if self.is_running:
             self.is_running = False
-            self.log("🛑 STOPPING... Safely aborting.")
+            self.log("🛑 STOPPING...")
             self.btn_stop.config(state="disabled", text="Stopping...")
 
     def reset_all(self):
@@ -190,7 +201,7 @@ class HybridSubtitleApp:
 
             c_size = int(self.chunk_var.get())
             total_chunks = (len(parsed_blocks) // c_size) + 1
-            self.log(f"Hybrid v1.4 Started. Blocks: {len(parsed_blocks)} | Chunks: {total_chunks}")
+            self.log(f"Hybrid Pro v1.5 Started. Blocks: {len(parsed_blocks)} | Chunks: {total_chunks}")
 
             for i in range((start_chunk-1)*c_size, len(parsed_blocks), c_size):
                 if not self.is_running: break
@@ -200,7 +211,6 @@ class HybridSubtitleApp:
                 text_payload = ""
                 for j, b in enumerate(chunk): text_payload += f"ID_{j}:: {b['text']}\n"
                 
-                # --- ADVANCED HYBRID PROMPT ---
                 prompt = f"""You are a professional movie subtitle simplifier.
 1. Rewrite the English text into VERY simple, plain English that is easy to translate to Sinhala.
 2. If the text has an idiom (e.g. 'Watch your six'), replace it with its literal meaning (e.g. 'Look behind you').
@@ -215,7 +225,7 @@ Input:
                 success = False
                 while not success and self.is_running:
                     try:
-                        self.log(f"⚙️ Chunk {current_chunk_num}: AI Analyzing Mood & Names...")
+                        self.log(f"⚙️ Chunk {current_chunk_num}: AI Processing...")
                         res_text = ""
                         api_key = self.api_var.get().strip()
                         if api_key.startswith("AIza"):
@@ -227,7 +237,7 @@ Input:
                             res_text = client.chat.completions.create(model=self.model_var.get().strip(), messages=[{"role": "user", "content": prompt}], temperature=0.3).choices[0].message.content
 
                         if res_text:
-                            self.log(f"🌍 Chunk {current_chunk_num}: Google Translating (High Quality)...")
+                            self.log(f"🌍 Chunk {current_chunk_num}: Google Translating...")
                             extracted, mappings, ids = [], [], []
                             for line in res_text.strip().split('\n'):
                                 if "ID_" in line and "::" in line:
@@ -266,7 +276,7 @@ Input:
                     self.log("⏳ Delaying 15s...")
                     time.sleep(15)
 
-            if self.is_running: messagebox.showinfo("Done", "Success! Ultimate Hybrid Translation Saved.")
+            if self.is_running: messagebox.showinfo("Done", "Success! Hybrid Translation Saved.")
         except Exception as e:
             if "cancelled" not in str(e).lower(): self.log(f"CRITICAL: {str(e)}")
         finally:
