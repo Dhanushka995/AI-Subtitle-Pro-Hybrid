@@ -229,7 +229,8 @@ class HybridSubtitleApp:
         ptype, url, model, label = self.detect_provider(keys[0])
         self.provider_type = ptype
         self.url_var.set(url)
-        if model:
+        # Only auto-fill model if field is currently EMPTY — never overwrite manual input
+        if model and not self.model_var.get().strip():
             self.model_var.set(model)
         self.auto_filling = False
 
@@ -262,9 +263,12 @@ class HybridSubtitleApp:
                 self.key_box.delete("1.0", tk.END)
                 self.key_box.insert("1.0", "\n".join(d["keys"]))
             if d.get("u"): self.url_var.set(d["u"])
-            if d.get("m"): self.model_var.set(d["m"])
             self.auto_filling = False
+            # on_key_change runs first — then restore saved model on top
             self.on_key_change()
+            # Saved model always wins — set it LAST so nothing can overwrite it
+            if d.get("m"):
+                self.model_var.set(d["m"])
         except Exception:
             pass
 
@@ -507,10 +511,12 @@ class HybridSubtitleApp:
 
                 while not success and self.is_running:
                     try:
-                        cur_label = self.detect_provider(
-                            self.key_list[self.current_key_idx])[3]
+                        # Show actual provider + actual model being used
+                        provider_label = self.detect_provider(
+                            self.key_list[self.current_key_idx])[3].split("·")[0].strip()
+                        actual_model = self.model_var.get().strip()
                         self.log(f"⚙️  Chunk {chunk_num}/{total_chunks}"
-                                 f" — [{self.current_key_idx+1}] {cur_label}")
+                                 f" — [{self.current_key_idx+1}] {provider_label} · {actual_model}")
 
                         res_text, usage = self.call_ai(sys_p, usr_p)
 
